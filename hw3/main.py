@@ -3,7 +3,7 @@ import time
 import logging
 import argparse
 import numpy as np
-import pandas as pd
+from scipy import stats
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -61,8 +61,10 @@ def parse_args():
                         help="learning rate for training")
     parser.add_argument("--optimizer", type=str, default="Adam", choices=["Adam", "RMSprop"],
                         help="choice of optimizer, only Adam and RMSprop are allowed so far")
-    parser.add_argument("--model_name", type=str, 
-                        help="model will be saved at ./result directory, now give this model a name!")
+    parser.add_argument("--need_train", type=bool, default=True,
+                        help="do you already have a pre-trained model? use model_name to determine which model to load")
+    parser.add_argument("--model_name", type=str, default="",
+                        help="model will be saved at ./result directory")
 
     args = parser.parse_args()
     return args
@@ -86,81 +88,7 @@ def load_data(transform, batch_size):
     return train_loader, test_loader
 
 
-def loss_acc_curve(train_loss, train_acc, test_loss, test_acc, plot_path):
-    # summarize history for accuracy
-    plt.figure(figsize=(20,10))
-    plt.plot(train_acc)
-    plt.plot(test_acc)
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(os.path.join(plot_path, "accuracy curve.png"))
-    plt.close()
-    # summarize history for loss
-    plt.figure(figsize=(20,10))
-    plt.plot(train_loss)
-    plt.plot(test_loss)
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.savefig(os.path.join(plot_path, "loss curve.png"))
-    plt.close()
-
-
-def main():
-
-    # set hyper-parameters
-    args = parse_args()
-    n_epochs = args.n_epochs
-    batch_size = args.batch_size
-    record_step = args.record_step
-    learning_rate = args.lr
-    optimizer_name = args.optimizer
-    model_name = args.model_name
-    assert optimizer_name in ["Adam", "RMSprop"], "optimizer should choose from ['Adam', 'RMSprop']"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    if os.path.splitext(model_name)[1] != ".ckpt":
-        model_name = model_name + ".ckpt"
-
-
-    root_path = os.getcwd()
-    res_path = os.path.join(root_path, "result")
-    if not os.path.exists(res_path):
-        raise PermissionError("didn't make directory /result!!")
-
-    # load data
-    data_transform = {
-        "train_transform": transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ]),
-        "test_transform": transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-    }
- 
-    train_loader, test_loader = load_data(data_transform, batch_size)
-
-    # define the model and optimizer
-    model = CNN(num_class=10).to(device)
-    criterion = nn.CrossEntropyLoss()
-
-    if optimizer_name == "Adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
-    elif optimizer_name == "RMSprop":
-        optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
-
-    
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150, 200], gamma=0.1)
-
-    # start training...
-    # some variables to record training process
+def train(model, train_loader, test_loader, n_epochs, optimizer, criterion, scheduler=None, record_step=100):
     total_step = len(train_loader)
     start_time = time.perf_counter()
     train_loss, test_loss = [], []
@@ -230,14 +158,20 @@ def main():
         print("Epoch:{}/{}, time used:{:.4f}, train accuracy:{:.4f}, test accuracy:{:.4f}".
             format(n+1, n_epochs, curr_time - start_time, train_accuray, test_accuracy))
         print("********************************")
+    metrics = {
+        "train_loss": train_loss,
+        "test_loss": test_loss,
+        "train_acc": train_acc,
+        "test_acc": test_acc
+    }
+    return model, metrics
 
-    print("model_name:", model_name)
-    loss_acc_curve(train_loss, train_acc, test_loss, test_acc, res_path)
-    torch.save(model.state_dict(), os.path.join(res_path, model_name))
 
-
-    # start testing
-    model.eval()
+def prediction(model, test_loader, device, result_path, is_MC=False, step=100):
+    if is_MC:
+        model.train()
+    else:
+        model.eval()
     all_predict_class = []
     all_true_class = []
     with torch.no_grad():
@@ -247,8 +181,17 @@ def main():
             images = images.to(device)
             labels = labels.type(torch.long).to(device)
 
-            predict = model(images)
-            _, predict_class = torch.max(predict.data, 1)
+            if is_MC:
+                each_batch_pred = []
+                for n in range(step):
+                    predict = model(images)
+                    _, predict_class = torch.max(predict.data, 1)
+                    each_batch_pred.append(predict_class.tolist())
+                predict_class, _ = stats.mode(each_batch_pred)
+                predict_class = predict_class[0] 
+            else:
+                predict = model(images)
+                _, predict_class = torch.max(predict.data, 1)
 
             all_true_class.extend(labels.tolist())
             all_predict_class.extend(predict_class.tolist())
@@ -259,19 +202,125 @@ def main():
         test_accuracy = correct/num_test
         print("overall test_accuracy is:{:.4f}".format(test_accuracy))
         logging.info("overall test_accuracy is:{:.4f}".format(test_accuracy))
+    return all_true_class, all_predict_class
 
 
+def loss_acc_curve(train_loss, train_acc, test_loss, test_acc, plot_path):
+    # summarize history for accuracy
+    plt.figure(figsize=(20,10))
+    plt.plot(train_acc)
+    plt.plot(test_acc)
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(os.path.join(plot_path, "accuracy curve.png"))
+    plt.close()
+    # summarize history for loss
+    plt.figure(figsize=(20,10))
+    plt.plot(train_loss)
+    plt.plot(test_loss)
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig(os.path.join(plot_path, "loss curve.png"))
+    plt.close()
+
+
+
+def main():
+    # set hyper-parameters
+    args = parse_args()
+    n_epochs = args.n_epochs
+    batch_size = args.batch_size
+    record_step = args.record_step
+    learning_rate = args.lr
+    optimizer_name = args.optimizer
+    need_train = args.need_train
+    model_name = args.model_name
+
+    assert optimizer_name in ["Adam", "RMSprop"], "optimizer should choose from ['Adam', 'RMSprop']"
+    assert len(model_name) > 0, "you should give the model a name to save/load"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if os.path.splitext(model_name)[1] != ".ckpt":
+        model_name = model_name + ".ckpt"
+
+
+    root_path = os.getcwd()
+    res_path = os.path.join(root_path, "result")
+    if not os.path.exists(res_path):
+        raise PermissionError("didn't make directory /result!!")
+
+    # load data
+    data_transform = {
+        "train_transform": transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]),
+        "test_transform": transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+    }
+ 
+    train_loader, test_loader = load_data(data_transform, batch_size)
+
+    # define the model and optimizer
+    model = CNN2(num_class=10).to(device)
+    criterion = nn.CrossEntropyLoss()
+
+    if optimizer_name == "Adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  
+    elif optimizer_name == "RMSprop":
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
 
     
-    logging.info("==========test set performance===========")
-    report = classification_report(all_true_class, all_predict_class)
-    confusion_mat = confusion_matrix(all_true_class, all_predict_class)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[50, 100, 150, 200], gamma=0.1)
+
+    # start training...
+    if need_train:
+        model, metrics = train(model, train_loader, test_loader, n_epochs, 
+                      optimizer, criterion, scheduler=scheduler, record_step=record_step)
+        
+        train_loss, test_loss = metrics["train_loss"], metrics["test_loss"]
+        train_acc, test_acc = metrics["train_acc"], metrics["test_acc"]
+        loss_acc_curve(train_loss, train_acc, test_loss, test_acc, res_path)
+        torch.save(model.state_dict(), os.path.join(res_path, model_name))
+    else:
+        model = CNN2(num_class=10)
+        model_path = os.path.join(res_path, model_name)
+        model.load_state_dict(torch.load(model_path))
+
+
+    # start testing
+    heuristic_true_class, heuristic_predict_class = prediction(model, test_loader, device, res_path)
+    
+    report = classification_report(heuristic_true_class, heuristic_predict_class)
+    confusion_mat = confusion_matrix(heuristic_true_class, heuristic_predict_class)
+    logging.info("==========heuristic test set performance===========")
     logging.info("{}".format(report))
     logging.info("{}".format(confusion_mat))
     
-    print("==========test set performance===========")
-    print(classification_report(all_true_class, all_predict_class))
-    print(confusion_matrix(all_true_class, all_predict_class))
+    print("==========heuristic test set performance===========")
+    print(report)
+    print(confusion_mat)
+
+
+    MC_true_class, MC_predict_class = prediction(mode, test_loader, device, res_path, is_MC=True, step=100)
+    report = classification_report(MC_true_class, MC_predict_class)
+    confusion_mat = confusion_matrix(MC_true_class, MC_predict_class)
+    logging.info("==========Monte Carlo test set performance===========")
+    logging.info("{}".format(report))
+    logging.info("{}".format(confusion_mat))
+    
+    print("==========Monte Carlo test set performance===========")
+    print(report)
+    print(confusion_mat)
 
 
 if __name__ == '__main__':
