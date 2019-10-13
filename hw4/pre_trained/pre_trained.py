@@ -189,6 +189,7 @@ def main():
         "train": transforms.Compose([
             transforms.RandomCrop(image_size, padding=4),
             transforms.RandomHorizontalFlip(),
+            transforms.Resize(224, interpolation=2),
             transforms.ToTensor(),
             transforms.Normalize(train_mean, train_std),
         ]),

@@ -21,18 +21,16 @@ def resnet18(num_class):
     model.load_state_dict(model_zoo.load_url(model_urls["resnet18"], model_dir="./"))
     for param in model.parameters():
         param.requires_grad = False
+    model.fc = nn.AdaptiveAvgPool2d(1)
     model.fc = nn.Linear(model.fc.in_features, num_class)
     return model
 
 
 class ResNet18(nn.Module):
-    def __init__(self, num_class, upscale=7):
+    def __init__(self, num_class):
         super(ResNet18, self).__init__()
         pre_trained_model = resnet18(num_class)
-        self.layer = nn.Sequential(
-            nn.Upsample(scale_factor=upscale, mode="bilinear"),
-            pre_trained_model,
-        )
+        self.layer = pre_trained_model
 
     def forward(self, x):
         out = self.layer(x)
