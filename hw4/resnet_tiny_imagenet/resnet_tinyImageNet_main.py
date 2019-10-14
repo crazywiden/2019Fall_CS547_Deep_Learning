@@ -6,8 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 from sklearn.metrics import confusion_matrix, classification_report
-# from resnet_model import resnet34
-from model import ResNet, Block
+from model import ResNet, Block, BottleneckBlock
 from utilis import load_tiny_imageNet, loss_acc_curve
 os.chdir(os.getcwd())
 logging.basicConfig(filename='tiny_ImageNet_record.log', level=logging.INFO)
@@ -29,7 +28,7 @@ def arg_parser():
                         help="how many of iterations take a snapshot of metrics")
     parser.add_argument("--lr", type=float, default=0.001,
                         help="learning rate for training")
-    parser.add_argument("--optimizer", type=str, default="RMSprop", choices=["Adam", "RMSprop"],
+    parser.add_argument("--optimizer", type=str, default="RMSprop", choices=["Adam", "RMSprop", "SGD"],
                         help="choice of optimizer, only Adam and RMSprop are allowed so far")
     parser.add_argument("--model_name", type=str, default="",
                         help="model will be saved at ./result directory")
@@ -48,7 +47,7 @@ def train(train_loader, test_loader, model, loss_func, optimizer, n_epochs, reco
         print("================Epoch:{}/{}====================".format(n + 1, n_epochs))
         correct = 0
         num_sample = 0
-
+        model.train()
         for i, (images, labels) in enumerate(train_loader):
             if CUDA:
                 images = images.cuda()
@@ -80,6 +79,7 @@ def train(train_loader, test_loader, model, loss_func, optimizer, n_epochs, reco
         train_accuracy = correct / num_sample
         train_acc.append(train_accuracy)
 
+        model.eval()
         with torch.no_grad():
             correct = 0
             num_sample = 0
@@ -187,15 +187,12 @@ def main():
         ])
     }
 
-    # train_path = r"/u/training/tra330/scratch/hw4/data/tiny-imagenet-200/train"
-    # test_path = r"/u/training/tra330/scratch/hw4/data/tiny-imagenet-200/val"
-
-    train_path = r"/Users/widen/Documents/study/IE534_deep_learning/hw4/tiny-imagenet-200/train"
-    test_path = r"/Users/widen/Documents/study/IE534_deep_learning/hw4/tiny-imagenet-200/val"
+    train_path = r"/u/training/tra330/scratch/hw4/data/tiny-imagenet-200/train"
+    test_path = r"/u/training/tra330/scratch/hw4/data/tiny-imagenet-200/val"
     train_loader, test_loader = load_tiny_imageNet(train_path, test_path, batch_size, transform)
     # define the model and optimizer
     # model = resnet34()
-    model = ResNet(Block, [2, 4, 4, 2], num_class)
+    model = ResNet(BottleneckBlock, [3, 4, 6, 1], 200)
     if CUDA:
         model = model.cuda()
     if optimizer_name == "Adam":
