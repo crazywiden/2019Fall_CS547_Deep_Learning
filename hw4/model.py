@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class Net2(nn.Module):
     def __init__(self):
         super(Net2, self).__init__()
@@ -94,23 +95,23 @@ class Block(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, basic_block, num_blocks, num_class):
         super(ResNet, self).__init__()
-        self.input_size = 64
+        self.input_size = 32
 
         self.pre_layer = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=(7, 7), padding=3, stride=2),
+            nn.Conv2d(3, 32, kernel_size=(3, 3), padding=1, stride=1),
             nn.BatchNorm2d(32),
             nn.MaxPool2d((3, 3), stride=2),
             nn.ReLU(),
             nn.Dropout(0.5)
         )
-        self.layer1 = self._make_layer(basic_block, 64, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(basic_block, 128, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(basic_block, 256, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(basic_block, 512, num_blocks[3], stride=2)
+        self.layer1 = self._make_layer(basic_block, 32, num_blocks[0], stride=1)
+        self.layer2 = self._make_layer(basic_block, 64, num_blocks[1], stride=2)
+        self.layer3 = self._make_layer(basic_block, 128, num_blocks[2], stride=2)
+        self.layer4 = self._make_layer(basic_block, 256, num_blocks[3], stride=2)
 
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
         # not sure whether this works for dimension
-        self.fc = nn.Linear(512 * basic_block.expansion, num_class)
+        self.fc = nn.Linear(256 * basic_block.expansion, num_class)
 
     def _make_layer(self, block, num_filter, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -134,6 +135,6 @@ class ResNet(nn.Module):
 
 if __name__ == "__main__":
     a = torch.rand((1, 3, 32, 32))
-    model = Net2()
+    model = ResNet(Block, [3,4,6,3],100)
     out = model(a)
     print(out.size())
