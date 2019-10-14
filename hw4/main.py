@@ -10,7 +10,7 @@ from torchvision import transforms
 import torch.distributed as dist
 from mpi4py import MPI
 from utilis import load_CIFAR100
-from model import Net2
+from model import ResNet
 
 cmd = "/sbin/ifconfig"
 out, err = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
@@ -51,10 +51,10 @@ transform = {
             transforms.Normalize(train_mean, train_std),
         ])
     }
-train_loader, test_loader = load_CIFAR100(batch_size=64, transform=transform)
+train_loader, test_loader = load_CIFAR100(batch_size=128, transform=transform)
 
 
-model = Net2()
+model = ResNet()
 
 # Make sure that all nodes have the same model
 for param in model.parameters():
@@ -66,12 +66,12 @@ model.cuda()
 
 path_save = os.path.join(os.getcwd(), "result")
 
-LR = 0.001
-batch_size = 100
+LR = 0.005
+batch_size = 128
 Num_Epochs = 1000
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.RMSprop(model.parameters(), lr=LR)
+optimizer = optim.SGD(model.parameters(), lr=LR, momentum=0.9, weight_decay=1e-5)
 
 
 start_time = time.perf_counter()
