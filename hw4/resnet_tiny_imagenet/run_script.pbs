@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -l nodes=01:ppn=16:xk
+#PBS -l walltime=07:00:00
+#PBS -N hw4_cifar100
+#PBS -e $PBS_JOBID.err
+#PBS -o $PBS_JOBID.out
+#PBS -m bea
+#PBS -M yuang5@illinois.edu
+
+cd ~/scratch/hw4/resnet_tiny_imagenet
+
+. /opt/modules/default/init/bash
+module load python/2.0.1
+
+aprun -n 1 -N 1 python resnet_tiny_ImageNet.py --image_size 64 --num_class 200 --n_epochs 200 --optimizer "RMSprop" --lr 0.001 --model_name "resnet_imageNet"
+

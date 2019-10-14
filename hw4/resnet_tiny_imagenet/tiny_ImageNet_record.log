@@ -1,0 +1,2 @@
+INFO:root:Epoch: 1/1, step:100/1563, Loss:5.2909, Cumulative accuracy:0.0061, time used:719.9326
+INFO:root:Epoch: 1/1, step:200/1563, Loss:5.2531, Cumulative accuracy:0.0077, time used:1430.3816
