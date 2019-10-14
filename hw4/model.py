@@ -100,17 +100,18 @@ class ResNet(nn.Module):
         self.pre_layer = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=(3, 3), padding=1, stride=1),
             nn.BatchNorm2d(32),
-            nn.MaxPool2d((3, 3), stride=2),
             nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Dropout(0.1)
         )
         self.layer1 = self._make_layer(basic_block, 32, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(basic_block, 64, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(basic_block, 128, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(basic_block, 256, num_blocks[3], stride=2)
 
-        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        # self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.avg_pool = nn.MaxPool2d(kernel_size=(3, 3))
         # not sure whether this works for dimension
+
         self.fc = nn.Linear(256 * basic_block.expansion, num_class)
 
     def _make_layer(self, block, num_filter, num_blocks, stride):
