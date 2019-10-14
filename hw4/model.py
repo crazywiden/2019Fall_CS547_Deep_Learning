@@ -5,22 +5,16 @@ import torch.nn.functional as F
 class Net2(nn.Module):
     def __init__(self):
         super(Net2, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, 4, padding=(2, 2))
-        self.conv2 = nn.Conv2d(64, 64, 4, padding=(2, 2))
+        self.conv1 = nn.Conv2d(3, 64, 2, padding=(1, 1))
+        self.conv2 = nn.Conv2d(64, 64, 2, padding=(1, 1))
 
-        self.conv3 = nn.Conv2d(64, 128, 4, padding=(2, 2))
-        self.conv4 = nn.Conv2d(128, 128, 4, padding=(2, 2))
-        self.conv5 = nn.Conv2d(128, 128, 4, padding=(2, 2))
-        self.conv6 = nn.Conv2d(128, 128, 4)
-        self.conv7 = nn.Conv2d(128, 128, 4)
-        self.conv8 = nn.Conv2d(128, 128, 4)
+        self.conv3 = nn.Conv2d(64, 128, 2, padding=(1, 1))
+        self.conv4 = nn.Conv2d(128, 128, 2, padding=(1, 1))
+        self.conv5 = nn.Conv2d(128, 128, 2, padding=(1, 1))
+        self.conv6 = nn.Conv2d(128, 128, 2)
+        self.conv7 = nn.Conv2d(128, 128, 2)
+        self.conv8 = nn.Conv2d(128, 128, 2)
 
-        # self.conv3 = nn.Conv2d(64, 64, 4, padding=(2, 2))
-        # self.conv4 = nn.Conv2d(64, 64, 4, padding=(2, 2))
-        # self.conv5 = nn.Conv2d(64, 64, 4, padding=(2, 2))
-        # self.conv6 = nn.Conv2d(64, 64, 4)
-        # self.conv7 = nn.Conv2d(64, 64, 4)
-        # self.conv8 = nn.Conv2d(64, 64, 4)
 
         self.pool = nn.MaxPool2d(2, 2)
 
@@ -39,21 +33,12 @@ class Net2(nn.Module):
         self.Bnorm4 = torch.nn.BatchNorm2d(128)
         self.Bnorm5 = torch.nn.BatchNorm2d(128)
 
-        # self.fc1 = nn.Linear(9 * 9 * 128, 1000)
-        # self.fc2 = nn.Linear(1000, 1000)
-        # self.fc3 = nn.Linear(1000, 200)
-        self.fc1 = nn.Linear(9 * 9 * 128, 250)
-        self.fc2 = nn.Linear(250, 250)
-        self.fc3 = nn.Linear(250, 200)
 
-        # self.VerticalFlip = transforms.RandomVerticalFlip(p=0.1)
-        # self.HorizontalFlip = transforms.RandomHorizontalFlip(p=0.1)
-        # Rotate0 = transforms.RandomRotation(30)
-        # self.RotateRandom = transforms.RandomApply(Rotate0, p=0.1)
+        self.fc1 = nn.Linear(7 * 7 * 128, 250)
+        self.fc2 = nn.Linear(250, 250)
+        self.fc3 = nn.Linear(250, 100)
 
     def forward(self, x):
-        # x = self.VerticalFlip(x)
-        # x = self.HorizontalFlip(x)
 
         x = self.Bnorm1(F.relu(self.conv1(x)))
         x = F.relu(self.conv2(x))
@@ -70,7 +55,7 @@ class Net2(nn.Module):
 
         x = self.dropout6(x)
 
-        x = x.view(-1, 9 * 9 * 128)
+        x = x.view(-1, 7 * 7 * 128)
 
         x = self.dropout7(F.relu(self.fc1(x)))
         x = self.dropout8(F.relu(self.fc2(x)))
@@ -148,7 +133,7 @@ class ResNet(nn.Module):
 
 
 if __name__ == "__main__":
-    a = torch.rand((1, 3, 64, 64))
-    model = ResNet(Block, [3, 4, 6, 3], 200)
+    a = torch.rand((1, 3, 32, 32))
+    model = Net2()
     out = model(a)
     print(out.size())
